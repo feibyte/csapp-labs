@@ -2,7 +2,7 @@
 
 来源： http://csapp.cs.cmu.edu/3e/labs.html
 
-❗️提醒：在每个实验之前仔细阅读官网的 `write up` 实在不明白这儿还有指导视频 https://scs.hosted.panopto.com/Panopto/Pages/Sessions/List.aspx#folderID=%22b96d90ae-9871-4fae-91e2-b1627b43e25e%22
+❗️提醒：在每个实验之前仔细阅读官网的 `write up`
 
 环境：
 因为很多文件在 MacOS 上无法直接运行，所以程序在 docker 容器下运行。IDEA 的文档 https://www.jetbrains.com/help/idea/docker.html 可以帮助搭建环境。
@@ -29,10 +29,11 @@ RBX R12 R13 R14 RBP RSP 调用者保存
 1. Data Lab ✅
 2. Bomb Lab ✅
 3. Attack Lab ✅
-4. Buffer Lab
+4. ~~Buffer Lab~~ legacy & replaced by attack lab
 5. Architecture Lab
-6. Architecture Lab (Y86)
-7. Cache Lab
+6. ~~Architecture Lab (Y86)~~ legacy & replaced by 5
+7. Cache Lab ✅
+   第二个实验可能会超时，需要修改 test-trans.c 文件中 alarm 时间
 8. Performance Lab
 9. Shell Lab
 10. Malloc Lab

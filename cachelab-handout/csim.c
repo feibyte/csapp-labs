@@ -5,8 +5,6 @@
 #include <unistd.h>
 #include <string.h>
 
-
-
 struct Trace {
   char *origin;
   long address;
@@ -37,20 +35,18 @@ char* copyLine(char *line) {
   return copy;
 }
 
-struct Trace * parseTrace(char *line) {
-  struct Trace *trace;
+void parseTrace(char *line, struct Trace *trace) {
   char *comma;
 
   line = ltrim(line);
   if (line == NULL) {
-    return NULL;
+    return;
   }
   comma = strchr(line, ',');
   if (comma == NULL) {
-    return NULL;
+    return;
   }
 
-  trace = malloc(sizeof(struct Trace));
   trace->origin = copyLine(line);
   trace->operation = line[0];
   line++;
@@ -58,7 +54,7 @@ struct Trace * parseTrace(char *line) {
   trace->address = strtol(line, &comma, 16);
   trace->size = atoi(comma + 1);
 
-  return trace;
+  return;
 }
 
 struct Options {
@@ -107,19 +103,18 @@ void printTrace(struct Trace *trace) {
 // For each set, we're using an array of int to represent E
 // -1 means empty, other values represent the tag
 // We're moving array to implement LRU, simply add it to the end of the arrary.
-
 struct Cache {
   int b;
   int s;
   int e;
-  int *sets;
+  long *sets;
 };
 
 struct Cache * buildCacheSimulator(int s, int e, int b) {
-  int *sets;
+  long *sets;
   struct Cache *cache;
   int S = 1 << s;
-  sets = malloc(S * e * sizeof(int));
+  sets = malloc(S * e * sizeof(long));
   for(int i = 0; i < S * e; i++) {
     sets[i] = -1;
   }
@@ -141,14 +136,12 @@ struct Result* accessCache(struct Cache *cache, struct Trace *trace) {
   int b = cache->b;
   int s = cache->s;
   int e = cache->e;
-  int *sets = cache->sets;
+  long *sets = cache->sets;
   int S = 1 << s;
 
-  int index = (int)(trace->address >> b) % S;
-  int tag = (int)((trace->address >> b) >> s);
-  int *set = sets + (index * e);
-
-  // printf("index: %d, tag: %d, set[0]: %d\n", index, tag, set[0]);
+  long index = (trace->address >> b) % S;
+  long tag = (trace->address >> b) >> s;
+  long *set = sets + (index * e);
 
   int hit = 0;
   int miss = 0;
@@ -174,7 +167,7 @@ struct Result* accessCache(struct Cache *cache, struct Trace *trace) {
   }
   set[0] = tag;
   if (trace->operation == 'M') {
-    hit = 1;
+    hit += 1;
   }
 
   struct Result *result = malloc(sizeof(struct Result));
@@ -187,62 +180,69 @@ struct Result* accessCache(struct Cache *cache, struct Trace *trace) {
 
 void printResult(char *origin, struct Result *result) {
   char buf[255];
-  char* str = strncpy(buf, origin, strlen(origin) + 1);
-  if (result->miss && str != NULL) {
+  int len = strlen(origin);
+  char* str = strncpy(buf, origin, len + 1);
+  if (str[len -1] == '\n') {
+    str[len -1] = '\0';
+  }
+  if (result->miss) {
     str = strcat(str, " miss");
   }
-  if (result->eviction && str != NULL) {
+  if (result->eviction) {
     str = strcat(str, " eviction");
   }
-  if (result->hit && str != NULL) {
+  while (result->hit != 0) {
     str = strcat(str, " hit");
+    result->hit -= 1;
   }
-  printf("%s\n", str);
+  printf("%s\n", ltrim(str));
 }
 
-int readTracesFromFile(char *fileName, struct Trace *traces[]) {
+struct Result * readTracesFromFile(char *fileName, struct Cache* cache, int v) {
   FILE *fp;
   char *line = NULL;
   size_t len = 0;
   ssize_t read;
   int i = 0;
+  struct Trace trace;
+  struct Result *summary = malloc(sizeof(struct Result));
+  summary->hit = 0;
+  summary->miss = 0;
+  summary->eviction = 0;
 
   fp = fopen(fileName, "r");
   if(fp == NULL) {
-    return -1;
+    exit(-1);
   }
   while ((read = getline(&line, &len, fp)) != -1) {
-    traces[i] = parseTrace(line);
+    parseTrace(line, &trace);
+    if (!(trace.operation == 'S' || trace.operation == 'M' || trace.operation == 'L')) {
+      continue;
+    }
+    struct Result* result = accessCache(cache, &trace);
+    summary->hit += result->hit;
+    summary->miss += result->miss;
+    summary->eviction += result->eviction;
+    if (v) {
+      printResult(line, result);
+    }
     i++;
   }
 
   fclose(fp);
   free(line);
-  return i;
+  return summary;
 }
 
 int main(int argc, char *argv[]) {
-  struct Trace *traces[2000];
   struct Options* options;
   struct Cache* cache;
-  struct Result* result;
-  struct Result summary = { 0, 0, 0 };
+  struct Result* summary;
 
   options = parseParams(argc, argv);
   cache = buildCacheSimulator(options->s, options->e, options->b);
-  printf("Cache: %d, %d, %d, %d \n", cache->s, cache->b, cache->e, cache->sets[0]);
 
-  int count = readTracesFromFile(options->fileName, traces);
-  for (int i = 0; i < count; i++) {
-    result = accessCache(cache, traces[i]);
-    summary.hit += result->hit;
-    summary.miss += result->miss;
-    summary.eviction += result->eviction;
-    if (options->v) {
-      printResult(traces[i]->origin, result);
-    }
-  }
-
-  printSummary(summary.hit, summary.miss, summary.eviction);
+  summary = readTracesFromFile(options->fileName, cache, options->v);
+  printSummary(summary->hit, summary->miss, summary->eviction);
   return 0;
 }
